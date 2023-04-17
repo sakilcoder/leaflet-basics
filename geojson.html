@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+        integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+        integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+
+    <script type="text/javascript"
+        src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.9.1/underscore-min.js"></script>
+    <script src="d3.v7.min.js"></script>
+
+    <script src="basemaps.js"></script>
+    <script src="countries.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            background-color: bisque;
+        }
+
+        .label-tooltip {
+            background-color: rgba(255, 255, 255, 0);
+            border: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <script>
+        var map = L.map('map').setView([41.61544232468112, -93.62548828125], 4); // lat, long // lat: 41.61544232468112, lng: -93.62548828125
+
+        // map.options.minZoom=8;
+        // map.options.maxZoom=14;
+
+        let googleStreet = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            // maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        }).addTo(map);
+
+        var Esri_WorldStreetMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+        });
+
+        const fetchText = async (url) => {
+            const response = await fetch(url);
+            return await response.text();
+        }
+
+        let countryStyle = function (feature, layer) {
+
+            let fillColor='#8799f2';
+            if(feature.properties.status){
+                if(feature.properties.status=='active')
+                    fillColor='#00ff00';
+                else if (feature.properties.status=='pending')
+                    fillColor='#ffff00';
+            }
+
+            return {
+                color: '#ed546e',
+                fillColor: fillColor,
+                fillOpacity: '.8'
+            }
+        }
+
+        let eachCountry = function (feature, layer) {
+            // console.log(feature.properties);
+
+            let string=feature.properties.name;
+
+            if(feature.properties.status){
+                string += '<br>' + feature.properties.status;
+            }
+
+            var popup = L.popup();
+            popup.setContent(string);
+            layer.bindPopup(popup);
+
+            layer.on('mouseover', function (e) {
+                var popup = e.target.getPopup();
+                popup.setLatLng(e.latlng).openOn(map);
+            });
+
+            layer.on('mousemove', function (e) {
+                popup.setLatLng(e.latlng).openOn(map);
+            });
+
+            layer.on('mouseout', function (e) {
+                e.target.closePopup();
+            });
+
+        }
+
+        fetchText('data_example.csv').then(text => {
+            let pois = d3.csvParse(text);
+
+            for (i = 0; i < countries.features.length; i++) {
+                let adata = _.filter(pois, function (r) {
+                    return r.country == countries.features[i].properties.name; // -1 means not present
+                });
+
+                // console.log(adata);
+                if (adata.length > 0) {
+                    countries.features[i].properties["year"] = adata[0].year;
+                    countries.features[i].properties["n"] = adata[0].n;
+                    countries.features[i].properties["status"] = adata[0].status;
+                }
+
+            }
+
+            let countryLayer = L.geoJSON(countries, {
+                style: countryStyle,
+                onEachFeature: eachCountry
+            }).addTo(map);
+
+        })
+
+
+
+
+
+
+        map.on('click', function (event) {
+            console.log(event);
+        })
+
+    </script>
+
+</body>
+
+</html>

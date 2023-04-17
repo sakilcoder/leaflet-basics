@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+        integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+        integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+
+    <script src="basemaps.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            background-color: bisque;
+        }
+        .label-tooltip{
+            background-color: rgba(255, 255, 255, 0);
+            border: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <script>
+        var map = L.map('map').setView([41.61544232468112, -93.62548828125], 14); // lat, long // lat: 41.61544232468112, lng: -93.62548828125
+
+        map.options.minZoom=8;
+        map.options.maxZoom=14;
+
+        let googleStreet = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        }).addTo(map);
+
+        var Esri_WorldStreetMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+        });
+
+        var marker = L.marker([41.61544232468112, -93.62548828125]).addTo(map);
+        marker.bindPopup("<b>Hello world!</b><br>I am a popup.");
+
+        var circle = L.circle([41.61544232468112, -93.62548828125], {
+            color: 'red',
+            fillColor: '#f03',
+            fillOpacity: 0.5,
+            radius: 500
+        }).addTo(map);
+
+        circle.bindPopup("circle").openPopup();
+
+        var polygon = L.polygon([
+                [41.618329849922084, -93.6068630218506],
+                [41.6085759121843, -93.58952522277832], 
+                [41.61512148056316, -93.5695266723633]
+        ], {
+            color: 'green',
+            weight: 20,
+            opacity: .5,
+            fillColor: '#ffff00',
+            fillOpacity: .5,
+        
+        }).addTo(map);
+
+        polygon.bindTooltip('this is a polygon',{
+            permanent: true,
+            direction: "center",
+            opacity: 1,
+            className: 'label-tooltip'
+        });
+
+
+        map.on('click', function (event) {
+            console.log(event);
+        })
+
+    </script>
+
+</body>
+
+</html>
