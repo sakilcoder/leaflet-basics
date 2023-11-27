@@ -1,1 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local area boundary</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: white;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: white;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            max-height: 200px;
+            min-width: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .leaflet-tooltip {
+            background-color: rgba(255, 255, 255, 0) !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        .label-tooltip {
+            font-size: 16px !important;
+            font-family: "Roboto", sans-serif !important;
+            color: black;
+        }
+
+        .inactive-label-tooltip {
+            font-size: 16px !important;
+            font-family: "Roboto", sans-serif !important;
+            color: darkgray;
+            cursor: alias;
+        }
+
+        .selected-label-tooltip {
+            font-size: 16px !important;
+            font-family: "Roboto", sans-serif !important;
+            color: white;
+        }
+
+        .selected {
+            fill-opacity: 1;
+            color: #01579b;
+            fill: gray;
+        }
+
+        .leaflet-interactive {
+            cursor: default;
+        }
+
+        .active-layer {
+            cursor: pointer !important;
+        }
+
+        .inactive-layer {
+            cursor: default !important;
+        }
+
+        .leaflet-cursor-default {
+            cursor: default;
+        }
+
+        .leaflet-cursor-pointer {
+            cursor: pointer;
+        }
+
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .nav-buttons button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+    <div id="info-panel"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="city-outline.js"></script>
+    <script src="ubc2.js"></script>
+    <!-- <script src="zone_w.js"></script> -->
+    <script>
+
+        var apiURL = 'https://opendata.vancouver.ca/api/explore/v2.1/catalog/datasets/local-area-boundary/records?limit=22';
+
+        var map = L.map('map', { attributionControl: false }).setView([49.24539682005315, -123.1062698364258], 12);
+        map.options.minZoom = 11;
+        map.options.maxZoom = 15;
+        map.options.zoomSnap = 0.2
+        map.options.attributionControl = false;
+        console.log(map);
+        // map.attribution
+        // L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        //     attribution: '© OpenStreetMap contributors'
+        // }).addTo(map);
+        cityOutlineLayer = L.geoJSON({
+            type: 'FeatureCollection',
+            features: city_outline
+        }, {
+            style: {
+                fillColor: 'white',
+                color: 'darkgray',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 1
+            }
+        }).addTo(map);
+
+        var nonClickableItems = [
+            "plexliving",
+            "Downtown",
+            "Fairview",
+            "Grandview-Woodland",
+            "Mount Pleasant",
+            "Strathcona",
+            "West End",
+            "Stanley Park",
+            "UBC"
+        ];
+
+        var selectedLayers = [];
+        var currentSelectedIndex = 0;
+
+        function toggleSelection(layer) {
+            var index = selectedLayers.indexOf(layer);
+
+            if (index !== -1) {
+                selectedLayers.splice(index, 1);
+                layer.setStyle({
+                    fillColor: '#80d8ff',
+                    color: 'darkgray',
+                    weight: 2,
+                    fillOpacity: 1
+                });
+                layer.unbindTooltip();
+                layer.bindTooltip(layer.feature.properties.name.replace(/\s/g, '</br>').replace('-', '</br>'), {
+                    permanent: true,
+                    direction: "center",
+                    opacity: 1,
+                    className: 'label-tooltip',
+
+                });
+            } else {
+                selectedLayers.push(layer);
+                layer.setStyle({
+                    fillColor: '#01579b',
+                    color: 'darkgray',
+                    weight: 2,
+                    fillOpacity: 1
+                });
+
+                layer.unbindTooltip();
+                layer.bindTooltip(layer.feature.properties.name.replace(/\s/g, '</br>').replace('-', '</br>'), {
+                    permanent: true,
+                    direction: "center",
+                    opacity: 1,
+                    className: 'selected-label-tooltip',
+
+                });
+            }
+
+            updateInfoPanel();
+        }
+
+        function updateInfoPanel() {
+            var infoPanel = document.getElementById('info-panel');
+            infoPanel.innerHTML = '';
+            if (selectedLayers.length > 0) {
+                var currentLayer = selectedLayers[currentSelectedIndex];
+                infoPanel.innerHTML += '<h4>' + currentLayer.feature.properties.name + '</h4>';
+            }
+
+            if (selectedLayers.length > 1) {
+                infoPanel.innerHTML += '<div class="nav-buttons">';
+                infoPanel.innerHTML += '<button onclick="previousSelectedLayer()">🡄</button>';
+                infoPanel.innerHTML += '<span>(' + (currentSelectedIndex + 1) + ' of ' + selectedLayers.length + ')</span>';
+                infoPanel.innerHTML += '<button onclick="nextSelectedLayer()">🡆</button>';
+                infoPanel.innerHTML += '</div>';
+            }
+        }
+
+        function nextSelectedLayer() {
+            currentSelectedIndex = (currentSelectedIndex + 1) % selectedLayers.length;
+            highlightCurrentLayer();
+        }
+
+        function previousSelectedLayer() {
+            currentSelectedIndex = (currentSelectedIndex - 1 + selectedLayers.length) % selectedLayers.length;
+            highlightCurrentLayer();
+        }
+
+        function highlightCurrentLayer() {
+            selectedLayers.forEach(function (layer, index) {
+                layer.unbindTooltip();
+                layer.bindTooltip(layer.feature.properties.name.replace(/\s/g, '</br>').replace('-', '</br>'), {
+                    permanent: true,
+                    direction: "center",
+                    opacity: 1,
+                    className: 'selected-label-tooltip',
+
+                })
+                if (index === currentSelectedIndex) {
+                    layer.setStyle({
+                        fillColor: '#40c4ff',
+                        color: 'darkgray',
+                        weight: 2,
+                        fillOpacity: 1
+                    });
+                } else {
+                    var isInSelectedLayers = selectedLayers.includes(layer);
+                    layer.setStyle({
+                        fillColor: '#01579b',
+                        color: 'darkgray',
+                        weight: 2,
+                        fillOpacity: 1
+                    });
+                }
+            });
+
+            updateInfoPanel();
+        }
+
+        var boundaryLayer;
+
+        fetch(apiURL)
+            .then(response => response.json())
+            .then(data => {
+                var features = data.results.map(result => {
+                    result.geom.properties.name = result.name;
+                    return result.geom;
+                });
+                features.push(ubc.features);
+                ubc.features.map(feature => {
+                    features.push(feature);
+                });
+                boundaryLayer = L.geoJSON({
+                    type: 'FeatureCollection',
+                    features: features
+                }, {
+                    style: function (feature) {
+                        return {
+                            fillColor: nonClickableItems.includes(feature.properties.name) ? '#fafafa' : '#80d8ff',
+                            color: 'darkgray',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 1,
+                        };
+                    }
+                }).addTo(map);
+
+                map.fitBounds(boundaryLayer.getBounds());
+                // map.setMaxBounds(boundaryLayer.getBounds());
+
+                boundaryLayer.eachLayer(function (layer) {
+                    if (map.getZoom() > 11) {
+                        layer.bindTooltip(layer.feature.properties.name.replace(/\s/g, '</br>').replace('-', '</br>'), {
+                            permanent: true,
+                            direction: "center",
+                            opacity: 1,
+                            className: nonClickableItems.includes(layer.feature.properties.name) ? 'inactive-label-tooltip' : 'label-tooltip',
+                        });
+                    }
+
+                    if (!nonClickableItems.includes(layer.feature.properties.name)) {
+                        var layerContainer = layer.getElement();
+                        layerContainer.classList.add('active-cursor');
+
+                        layer.on('click', function (e) {
+                            toggleSelection(layer);
+                        });
+
+                        layer.on('mouseover', function (e) {
+                            layer.setStyle({
+                                fillColor: '#40c4ff',
+                                color: 'darkgray',
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 1,
+
+                            });
+                            if (map.getZoom() > 11) {
+                                layer.unbindTooltip();
+                                layer.bindTooltip(layer.feature.properties.name.replace(/\s/g, '</br>').replace('-', '</br>'), {
+                                    permanent: true,
+                                    direction: "center",
+                                    opacity: 1,
+                                    className: 'selected-label-tooltip',
+                                });
+                            } else {
+                                layer.unbindTooltip();
+                            }
+
+                        });
+
+                        layer.on('mouseout', function (e) {
+                            var isInSelectedLayers = selectedLayers.includes(layer);
+                            layer.setStyle({
+                                fillColor: isInSelectedLayers ? '#01579b' : '#80d8ff',
+                                color: 'darkgray',
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 1
+                            });
+                            if (map.getZoom() > 11) {
+                                layer.unbindTooltip();
+                                layer.bindTooltip(layer.feature.properties.name.replace(/\s/g, '</br>').replace('-', '</br>'), {
+                                    permanent: true,
+                                    direction: "center",
+                                    opacity: 1,
+                                    className: nonClickableItems.includes(layer.feature.properties.name) ? 'inactive-label-tooltip' : isInSelectedLayers ? 'selected-label-tooltip' : 'label-tooltip',
+                                });
+                            } else {
+                                layer.unbindTooltip();
+                            }
+
+                        });
+                    } else {
+                        // Style for non-clickable items
+                        var layerContainer = layer.getElement();
+                        layerContainer.classList.add('inactive-cursor');
+
+                        layer.setStyle({
+                            fillColor: '#fafafa',
+                            color: 'darkgray',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 1,
+                        });
+                    }
+
+                    var activeClass = document.querySelectorAll('.leaflet-interactive');
+                    activeClass.forEach(function (element) {
+                        if (element.classList.contains('active-cursor')) {
+                            element.style.setProperty('cursor', 'pointer', 'important');
+                        } else {
+                            element.style.setProperty('cursor', 'default', 'important');
+                        }
+                    });
+
+                });
+
+            });
+
+        map.on('zoomend', function () {
+            boundaryLayer.eachLayer(function (layer) {
+                if (map.getZoom() > 11) {
+                    layer.bindTooltip(layer.feature.properties.name.replace(/\s/g, '</br>').replace('-', '</br>'), {
+                        permanent: true,
+                        direction: "center",
+                        opacity: 1,
+                        className: nonClickableItems.includes(layer.feature.properties.name) ? 'inactive-label-tooltip' : 'label-tooltip',
+
+                    });
+                } else {
+                    layer.unbindTooltip();
+                }
+            });
+        });
+
+    </script>
+
+</body>
+
+</html>
