@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet Draw Map</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+
+    <!-- Leaflet.draw CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
+
+    <!-- Leaflet and Leaflet.draw JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+    <style>
+        #map {
+            height: 80vh;
+        }
+
+        .legend {
+            list-style: none;
+        }
+
+        .legend li {
+            float: left;
+            margin-right: 10px;
+        }
+
+        .legend span {
+            display: block;
+            width: 12px;
+            height: 12px;
+            margin: 2px;
+        }
+
+        .legend span {
+            float: left;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Map container -->
+    <div id="map"></div>
+    <button id="sendPolygons">Update Polygons</button>
+
+    <script>
+
+        document.getElementById('sendPolygons').addEventListener('click', sendAllPolygons);
+        var polygonsGeoJson;
+        var pointsGeoJson;
+        var colorDict;
+
+        var drawnItems = new L.FeatureGroup();
+
+        // Initialize the map
+        var map = L.map('map').setView([-34.6, -58.9], 13);
+
+        // Add the base OpenStreetMap layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Create a feature group to store drawn items
+        var polygonsFeatureGroup = L.geoJSON(polygonsGeoJson, {
+            style: function (feature) {
+                return { color: feature.properties.color };
+            }
+        }).addTo(map);
+
+        var pointsFeatureGroup = L.featureGroup().addTo(map);
+
+        // Add the feature group to the map
+        map.addLayer(drawnItems);
+
+        var customMarkerIcon = L.divIcon({
+            className: 'leaflet-material-icon', 
+            html: '<i class="material-icons">place</i>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 24],
+        });
+
+        var drawControl = new L.Control.Draw({
+            draw: {
+                polyline: false,
+                polygon: true,
+                rectangle: false,
+                marker: {
+                    icon: customMarkerIcon,
+                },
+                circle: false,
+                circlemarker: false,
+            },
+            edit: {
+                remove: true,
+                featureGroup: drawnItems,
+                edit: {
+                    selectedPathOptions: {
+                        color: '#FF5500',
+                        opacity: 1,
+                        weight: 2
+                    }
+                }
+
+            },
+
+        });
+        map.addControl(drawControl);
+
+        map.on('draw:created', function (e) {
+            var newLayer = e.layer;
+
+            if (newLayer instanceof L.Marker) {
+                var featureName = prompt("Benenne das Marker:");
+                var color = prompt("Color:");
+                var rc = prompt("RC:");
+                var rs = prompt("RS:");
+
+                if (featureName && color) {
+                    newLayer.feature = {
+                        type: 'Feature',
+                        properties: {
+                            name: featureName,
+                            rc: rc,
+                            rs: rs,
+                            color: color // Assign the color here
+                        }
+                    };
+
+                    const materialIcon = L.divIcon({
+                        className: 'leaflet-material-icon',
+                        html: `<i class="material-icons" style="color: ${color}">place</i>`,
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 24],
+                        popupAnchor: [0, -24],
+                    });
+                    newLayer.setIcon(materialIcon);
+
+                    newLayer.bindPopup(featureName); // Bind the entered name as a popup to the layer
+                    newLayer.on('click', function () {
+                        console.log(newLayer);
+                        this.openPopup();
+                    });
+
+                    console.log("Neues marker erstellt:", newLayer); // Log the newly created layer
+                } else {
+                    console.log("Marker creation was cancelled or invalid input was provided.");
+                }
+
+                drawnItems.addLayer(newLayer);
+                pointsFeatureGroup.addLayer(newLayer);
+                updatePointsGeoJson();
+            } else if (newLayer instanceof L.Polygon) {
+
+                var featureName = prompt("Benenne das Polygon:");
+                var loopPosition = prompt("Benenne die Loop Position:");
+                var polygonColor = prompt("Wähle eine Farbe(bitte auf englisch: red, green, pink...):");
+
+                if (featureName && loopPosition && polygonColor) {
+                    newLayer.feature = {
+                        type: 'Feature',
+                        properties: {
+                            name: featureName,
+                            loop_position: loopPosition,
+                            color: polygonColor // Assign the color here
+                        }
+                    };
+
+                    newLayer.bindPopup(featureName); // Bind the entered name as a popup to the layer
+                    newLayer.on('click', function () {
+                        console.log(newLayer);
+                        this.openPopup();
+                    });
+
+                    console.log("Neues Polygon erstellt:", newLayer); // Log the newly created layer
+                } else {
+                    console.log("Polygon creation was cancelled or invalid input was provided.");
+                }
+
+                newLayer.setStyle({ color: polygonColor });
+                drawnItems.addLayer(newLayer);
+                polygonsFeatureGroup.addLayer(newLayer);
+                updatePolygonsGeoJson();
+            }
+
+        });
+
+        map.on('draw:edited', function (e) {
+            var layers = e.layers;
+            layers.eachLayer(function (layer) {
+                if (layer instanceof L.Marker) {
+                    updateLayerByIndex(pointsFeatureGroup, layer);
+                    updatePointsGeoJson();
+                } else if (layer instanceof L.Polygon) {
+                    updateLayerByIndex(polygonsFeatureGroup, layer);
+                    updatePolygonsGeoJson();
+                }
+            });
+        });
+
+        map.on('draw:deleted', function (e) {
+            var layers = e.layers;
+            layers.eachLayer(function (layer) {
+                // Remove the layer from the feature groups
+                if (layer instanceof L.Marker) {
+                    pointsFeatureGroup.removeLayer(layer);
+                    updatePointsGeoJson();
+                } else if (layer instanceof L.Polygon) {
+                    polygonsFeatureGroup.removeLayer(layer);
+                    updatePolygonsGeoJson();
+                }
+            });
+        });
+
+        function updateLayerByIndex(featureGroup, editedLayer) {
+            featureGroup.eachLayer(function (layer, index) {
+                if (layer === editedLayer) {
+                    featureGroup.removeLayer(layer);
+                    featureGroup.addLayer(editedLayer);
+                }
+            });
+        }
+
+        function updatePolygonsGeoJson() {
+            polygonsGeoJson = polygonsFeatureGroup.toGeoJSON();
+            console.log('Aktualisiertes GeoJSON für Polygone:', polygonsGeoJson);
+        }
+
+        function updatePointsGeoJson() {
+            pointsGeoJson = pointsFeatureGroup.toGeoJSON();
+            console.log('Aktualisiertes GeoJSON für Punkte:', pointsGeoJson);
+        }
+
+        // Function to send all polygons to the server
+        function sendAllPolygons() {
+            const allPolygons = polygonsFeatureGroup.toGeoJSON();
+            const allPoints = pointsFeatureGroup.toGeoJSON();  // Verwenden Sie die bestehenden Punkte-GeoJSON-Daten
+            console.log(JSON.stringify(allPolygons))
+            console.log('Sending Polygons:', JSON.stringify(allPolygons));
+            console.log('Sending Points:', JSON.stringify(allPoints));
+
+            const dataToSend = {
+                polygons: allPolygons,
+                points: allPoints
+            };
+
+            fetch('http://127.0.0.1:5000/send_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(dataToSend)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('data sent successfully:', data);
+                    redrawMap(data.polygons, data.points);
+                })
+                .catch((error) => {
+                    console.error('Error when sending polygons:', error);
+                });
+        }
+
+        // Function to redraw the map with new data
+        function redrawMap(newPolygons, newPoints) {
+            // Clear existing layers
+            drawnItems.clearLayers();
+            polygonsFeatureGroup.clearLayers();
+            pointsFeatureGroup.clearLayers();
+
+            // Add new polygons
+            L.geoJSON(newPolygons, {
+                style: function (feature) {
+                    return { color: feature.properties.color };
+                }
+            }).addTo(polygonsFeatureGroup);
+
+            // Add new points
+            L.geoJSON(newPoints).addTo(pointsFeatureGroup);
+
+            // Add the feature groups to the map
+            map.addLayer(polygonsFeatureGroup);
+            map.addLayer(pointsFeatureGroup);
+        }
+
+    </script>
+</body>
+
+</html>
