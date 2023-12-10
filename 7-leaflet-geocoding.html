@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- Leaflet Control Geocoder -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        #map {
+            height: 400px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <script>
+
+        var map = L.map('map').setView([47.925270, 7.688260], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+
+        map.on('click', function (e) {
+            reverseGeocode(e.latlng);
+        });
+
+        var searchForAddress = true;
+        var geocoder = L.Control.Geocoder.nominatim();
+        var geocoderControl = L.Control.geocoder({
+            geocoder: geocoder,
+            collapsed: false,
+            placeholder: "Search for an address...",
+            defaultMarkGeocode: false
+        }).addTo(map);
+
+        geocoderControl.on('markgeocode', function (e) {
+            var latlng = e.geocode.center;
+            var address = e.geocode.name || e.geocode.properties.address || 'Address not found';
+            addMarker(latlng, address, 40);
+        });
+
+        function addMarker(latlng, address, marker_size) {
+            var marker = L.marker(latlng).addTo(map);
+            marker.setIcon(GoogleIcon(marker_size));
+            marker.bindPopup(address).openPopup();
+            map.flyTo(latlng, 19);
+        }
+
+        function drawMarker(searchForAddress, lat, lon, address, marker_size) {
+            searchForAddress == true ? drawMarkerFromAddress(address, marker_size) : drawMarkerFromLatLon(lat, lon, address, marker_size);
+        }
+
+        function drawMarkerFromLatLon(lat, lon, address, marker_size) {
+            let latlng = L.latLng(lat, lon);
+            var marker = L.marker(latlng).addTo(map);
+            marker.setIcon(GoogleIcon(marker_size));
+            marker.bindPopup(address).openPopup();
+            map.flyTo(latlng, 19);
+        }
+
+        function drawMarkerFromAddress(address, marker_size) {
+            geocoder.geocode(address, function(results) {
+                if (results.length > 0) {
+                    var latlng = results[0].center;
+                    var marker = L.marker(latlng).addTo(map);
+                    marker.setIcon(GoogleIcon(marker_size));
+                    marker.bindPopup(address).openPopup();
+                    map.flyTo(latlng, 19);
+                } else {
+                    console.error('Geocoding failed for address: ' + address);
+                }
+            });
+        }
+
+        drawMarker(searchForAddress, 47.925270, 7.688260, 'Breisgauer Str. 9, 79189 Bad Krozingen', 40);
+
+        function reverseGeocode(latlng) {
+            var geocoder = L.Control.Geocoder.nominatim();
+
+            geocoder.reverse(latlng, map.options.crs.scale(map.getZoom()), function (results) {
+                console.log(results);
+                var address = results[0].name || results[0].html || results[0].properties.address || 'Address not found';
+                addMarker(latlng, address, 40);
+                L.popup()
+                    .setLatLng(latlng)
+                    .setContent(address)
+                    .openOn(map);
+            });
+        }
+
+        function GoogleIcon(icon_size) {
+            let html = '<span class="g-icon"><i class="material-icons g-icon-i" style="font-size:' + icon_size + 'px; color: #4CACBC">place</i></span>';
+            return L.divIcon({
+                html: html,
+                iconSize: [icon_size, icon_size],
+                iconAnchor: [icon_size / 2, icon_size],
+                popupAnchor: [0, -icon_size + icon_size / 100 * 2],
+                className: 'my-google-icon'
+            });
+        }
+
+    </script>
+</body>
+
+</html>
